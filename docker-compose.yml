@@ -1,0 +1,109 @@
+services:
+  # Database instances (Database-per-Service)
+  db_identity:
+    image: postgres:15-alpine
+    container_name: profeco_db_identity
+    environment:
+      POSTGRES_DB: profeco_identity
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./infra/init-db-identity.sql:/docker-entrypoint-initdb.d/init.sql
+      - identity_data:/var/lib/postgresql/data
+
+  db_catalog:
+    image: postgres:15-alpine
+    container_name: profeco_db_catalog
+    environment:
+      POSTGRES_DB: profeco_catalog
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./infra/init-db-catalog.sql:/docker-entrypoint-initdb.d/init.sql
+      - catalog_data:/var/lib/postgresql/data
+
+  db_audit:
+    image: postgres:15-alpine
+    container_name: profeco_db_audit
+    environment:
+      POSTGRES_DB: profeco_audit
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./infra/init-db-audit.sql:/docker-entrypoint-initdb.d/init.sql
+      - audit_data:/var/lib/postgresql/data
+
+  # Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: profeco_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+
+  # API Gateway
+  gateway:
+    image: nginx:alpine
+    container_name: profeco_gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - identity-service
+      - catalog-service
+      - audit-service
+
+  # Microservices build configuration
+  identity-service:
+    build:
+      context: .
+      dockerfile: backend/identity-service/Dockerfile
+    container_name: identity_service
+    environment:
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://db_identity:5432/profeco_identity
+      QUARKUS_GRPC_SERVER_PORT: 9001
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      - db_identity
+      - rabbitmq
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: backend/catalog-service/Dockerfile
+    container_name: catalog_service
+    environment:
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://db_catalog:5432/profeco_catalog
+      QUARKUS_GRPC_SERVER_PORT: 9002
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      - db_catalog
+      - rabbitmq
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: backend/audit-service/Dockerfile
+    container_name: audit_service
+    environment:
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://db_audit:5432/profeco_audit
+      QUARKUS_GRPC_SERVER_PORT: 9003
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      - db_audit
+      - rabbitmq
+
+volumes:
+  identity_data:
+  catalog_data:
+  audit_data:

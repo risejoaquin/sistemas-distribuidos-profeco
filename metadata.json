@@ -1,0 +1,6 @@
+{
+  "name": "Sistema ProFeCo - Arquitectura Industrial",
+  "description": "Plataforma de grado industrial para el Sistema ProFeCo, con arquitectura de microservicios (Identity, Catalog, Audit), gRPC, RabbitMQ y Nginx Gateway.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
